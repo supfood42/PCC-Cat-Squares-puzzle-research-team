@@ -102,12 +102,28 @@ def print_pieces(grid):
         for piece in row:
             print(*piece)
 
+
+def collect_pieces(grid):
+    """Return all pieces as rows of four numbers."""
+    rows = []
+    for row in grid:
+        for piece in row:
+            rows.append(piece)
+    return rows
+
+
 # Generate and output
 n = int(input("Enter puzzle size (n for nxn): "))
-solved = generate_puzzle(n)
-print(f"\nSolved {n}x{n} Puzzle:")
-print_pieces(solved)
+total_puzzles = int(input("Enter total number of scrambled puzzles: "))
 
-scrambled = scramble_puzzle([row[:] for row in solved], n)
-print(f"\nScrambled {n}x{n} Puzzle:")
-print_pieces(scrambled)
+output_lines = []
+for _ in range(total_puzzles):
+    solved = generate_puzzle(n)
+    scrambled = scramble_puzzle([row[:] for row in solved], n)
+    for piece in collect_pieces(scrambled):
+        output_lines.append(" ".join(map(str, piece)))
+
+with open(f"scrambled_puzzles_{n}x{n}.txt", "w", encoding="utf-8") as f:
+    f.write("\n".join(output_lines))
+
+print(f"Saved {total_puzzles} scrambled puzzles to scrambled_puzzles_{n}x{n}.txt")
