@@ -51,7 +51,7 @@ def generate_valid_piece(grid, row, col):
         piece[3] = opposite_side(grid[row][col-1][1])
     
     # Fill unconstrained sides with random colors
-    colors = 'RrPpYyBbGg'
+    colors = 'RrPpYyGg'
     for i in range(4):
         if piece[i] is None:
             piece[i] = random.choice(colors)
