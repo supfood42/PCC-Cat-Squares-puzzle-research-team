@@ -1,14 +1,22 @@
 import math
+import os
 import random
 import re
 import sys
 import time
+import tkinter as tk
+from tkinter import filedialog
 from typing import List, Optional
+
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+SOLVE_MULTIPLE_PUZZLES = True
+# ==============================================================================
 
 # Each piece is stored as [top, right, bottom, left].
 # A positive value means one cat side and a negative value means the opposite side;
 # the absolute value is the color number (1..4).
-
 
 def rotate_piece(piece: List[int], times: int = 1) -> List[int]:
     # Rotate a piece clockwise by the requested number of quarter turns.
@@ -16,7 +24,6 @@ def rotate_piece(piece: List[int], times: int = 1) -> List[int]:
     for _ in range(times % 4):
         rotated = [rotated[3], rotated[0], rotated[1], rotated[2]]
     return rotated
-
 
 def build_rotations(pieces: List[List[int]]) -> List[List[List[int]]]:
     # Return every rotation for every piece.
@@ -30,7 +37,6 @@ def build_rotations(pieces: List[List[int]]) -> List[List[List[int]]]:
         rotations.append(options)
     return rotations
 
-
 def matches(left: Optional[int], right: Optional[int]) -> bool:
     # Check whether two sides form a valid cat-head/cat-body match.
     return (
@@ -40,7 +46,6 @@ def matches(left: Optional[int], right: Optional[int]) -> bool:
         and left + right == 0
     )
 
-
 def solve_puzzle_with_stats(pieces: List[List[int]]):
     # Solve an nxn matched-squares puzzle using backtracking.
     if not pieces:
@@ -49,7 +54,10 @@ def solve_puzzle_with_stats(pieces: List[List[int]]):
     count = len(pieces)
     n = int(round(math.sqrt(count)))
     if n * n != count:
-        raise ValueError("The number of pieces must form a perfect square grid")
+        raise ValueError(f"The number of pieces ({count}) must form a perfect square grid")
+
+    # Print the start sequence matching your style
+    print("\n[Running] Initiating solver and mapping layers...")
 
     rotations = build_rotations(pieces)
     board: List[List[Optional[dict]]] = [[None] * n for _ in range(n)]
@@ -104,7 +112,13 @@ def solve_puzzle_with_stats(pieces: List[List[int]]):
         return False
 
     solved = backtrack(0)
-    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+    elapsed_seconds = time.perf_counter() - start_time
+
+    # Print the end sequence matching your style (with clear line padding)
+    print("\r" + " " * 50 + "\r", end="") 
+    print("[Done] Search finished.                           ")
+    print(f"Total states explored: {steps:,}")
+    print(f"Time elapsed: {elapsed_seconds:.4f} seconds")
 
     if not solved:
         return None
@@ -113,15 +127,13 @@ def solve_puzzle_with_stats(pieces: List[List[int]]):
     return {
         "grid": solved_grid,
         "steps": steps,
-        "elapsed_ms": elapsed_ms,
+        "elapsed_ms": elapsed_seconds * 1000.0,
     }
-
 
 def solve_puzzle(pieces: List[List[int]]):
     # Convenience wrapper that returns only the solved grid.
     result = solve_puzzle_with_stats(pieces)
     return None if result is None else result["grid"]
-
 
 def parse_pieces(text: str) -> List[List[int]]:
     # Parse all integers from the input and group them into four-value pieces.
@@ -129,38 +141,92 @@ def parse_pieces(text: str) -> List[List[int]]:
     values = [int(token) for token in tokens]
     return [values[i : i + 4] for i in range(0, len(values), 4)]
 
-
 def print_solution(grid: List[List[List[int]]]) -> None:
     # Print the solved grid as one piece per line without blank lines.
     for row in grid:
         for piece in row:
             print(*piece)
 
-
 def main() -> None:
-    print("Input puzzle in row number form and press Enter on a blank line when finished:")
-    lines = []
-    while True:
-        line = sys.stdin.readline()
-        if line == "":
-            break
-        stripped = line.strip()
-        if not stripped:
-            break
-        lines.append(stripped)
+    if SOLVE_MULTIPLE_PUZZLES:
+        # Hide the main tkinter window
+        root = tk.Tk()
+        root.withdraw()
+        filename = filedialog.askopenfilename(
+            title="Open puzzle dataset",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        root.destroy()
+        
+        if not filename:
+            print("No file selected. Exiting.")
+            sys.exit(0)
 
-    text = "\n".join(lines)
-    if not text and len(sys.argv) > 1:
-        text = " ".join(sys.argv[1:])
+        basename = os.path.basename(filename)
+        # Assuming filename format like: scrambledPuzzles_4x4_100.txt
+        match = re.search(r"_(\d+)x\1_(\d+)", basename)
+        
+        with open(filename, "r", encoding="utf-8") as f:
+            text = f.read()
 
-    pieces = parse_pieces(text)
-    result = solve_puzzle_with_stats(pieces)
+        all_pieces = parse_pieces(text)
 
-    print("Solved puzzle:")
-    print_solution(result["grid"])
-    print(f"Steps used: {result['steps']}")
-    print(f"Time used: {result['elapsed_ms']:.2f} ms")
+        if match:
+            n = int(match.group(1))
+            total_puzzles = int(match.group(2))
+        else:
+            # Fallback if the filename doesn't match the expected format
+            print("Could not extract puzzle size and count from filename. Assuming 1 puzzle.")
+            total_puzzles = 1
+            n = int(math.sqrt(len(all_pieces)))
+            
+        expected_piece_count = n * n * total_puzzles
+        if len(all_pieces) != expected_piece_count:
+            print(f"Warning: Dataset has {len(all_pieces)} pieces, expected {expected_piece_count}.")
+            # Adjust puzzle count based on actual pieces found
+            total_puzzles = len(all_pieces) // (n * n)
 
+        start_time_total = time.perf_counter()
+        
+        for idx in range(total_puzzles):
+            # Slice the dataset into individual puzzles
+            puzzle = all_pieces[idx * n * n : (idx + 1) * n * n]
+            solve_puzzle_with_stats(puzzle)
+            
+        elapsed_time_total = time.perf_counter() - start_time_total
+
+        # Print overall stats exactly matching your layout style
+        print(f"Puzzle size: {n}x{n}")
+        print(f"Number of puzzles: {total_puzzles}")
+        print(f"Total time elapsed: {elapsed_time_total:.4f} seconds")
+        if total_puzzles > 0:
+            print(f"Average time per puzzle: {elapsed_time_total / total_puzzles:.4f} seconds")
+
+    else:
+        # Original single-puzzle behavior
+        print("Input puzzle in row number form and press Enter twice:")
+        lines = []
+        while True:
+            line = sys.stdin.readline()
+            if line == "":
+                break
+            stripped = line.strip()
+            if not stripped:
+                break
+            lines.append(stripped)
+
+        text = "\n".join(lines)
+        if not text and len(sys.argv) > 1:
+            text = " ".join(sys.argv[1:])
+
+        pieces = parse_pieces(text)
+        result = solve_puzzle_with_stats(pieces)
+
+        if result:
+            print("\nSolved puzzle:")
+            print_solution(result["grid"])
+        else:
+            print("\nNo solution exists for this configuration.")
 
 if __name__ == "__main__":
     main()
