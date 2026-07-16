@@ -35,10 +35,6 @@ def solve_layer_by_layer(pieces):
         nonlocal states_explored
         states_explored += 1
         
-        # Print a small heartbeat progress indicator every 10,000 state evaluations
-        if states_explored % 10000 == 0:
-            print(f"\r[Running] Evaluated {states_explored:,} states...", end="", flush=True)
-            
         # Base Case: All layers successfully filled
         if cell_idx == len(cells_by_layer):
             return True
@@ -107,19 +103,17 @@ if __name__ == "__main__":
     # Read line-by-line until a blank line is entered
     lines = []
     while True:
-        try:
-            line = input()
-            if not line.strip(): # Stop if the user presses Enter on an empty line
-                break
-            lines.append(line)
-        except EOFError:
+        line = input()
+        if not line.strip(): # Stop if the user presses Enter on an empty line
             break
-            
+        lines.append(line)
+    
     # Parse the input pieces
     pieces = []
     for line in lines:
         try:
             pieces.append(list(map(int, line.strip().split())))
+    #------Redundancies------------------------------------------------------------------------
         except ValueError:
             print(f"Error parsing line: '{line}'. Please ensure it only contains numbers.")
             sys.exit(1)
@@ -133,10 +127,10 @@ if __name__ == "__main__":
     if n % 1 != 0:
         print(f"Error: The number of pieces ({len(pieces)}) must be a perfect square (e.g., 9, 16, 25).")
         sys.exit(1)
-        
+    #-------------------------------------------------   
     # Solve
     solution = solve_layer_by_layer(pieces)
-    
+    #---------------------------------------------------
     if solution:
         print_solution(solution)
     else:

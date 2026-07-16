@@ -11,7 +11,7 @@ from typing import List, Optional
 
 
 def rotate_piece(piece: List[int], times: int = 1) -> List[int]:
-    """Rotate a piece clockwise by the requested number of quarter turns."""
+    # Rotate a piece clockwise by the requested number of quarter turns.
     rotated = list(piece)
     for _ in range(times % 4):
         rotated = [rotated[3], rotated[0], rotated[1], rotated[2]]
@@ -19,7 +19,7 @@ def rotate_piece(piece: List[int], times: int = 1) -> List[int]:
 
 
 def build_rotations(pieces: List[List[int]]) -> List[List[List[int]]]:
-    """Return every rotation for every piece."""
+    # Return every rotation for every piece.
     rotations: List[List[List[int]]] = []
     for piece in pieces:
         options: List[List[int]] = []
@@ -32,7 +32,7 @@ def build_rotations(pieces: List[List[int]]) -> List[List[List[int]]]:
 
 
 def matches(left: Optional[int], right: Optional[int]) -> bool:
-    """Check whether two sides form a valid cat-head/cat-body match."""
+    # Check whether two sides form a valid cat-head/cat-body match.
     return (
         left is not None
         and right is not None
@@ -42,7 +42,7 @@ def matches(left: Optional[int], right: Optional[int]) -> bool:
 
 
 def solve_puzzle_with_stats(pieces: List[List[int]]):
-    """Solve an nxn matched-squares puzzle using backtracking."""
+    # Solve an nxn matched-squares puzzle using backtracking.
     if not pieces:
         return None
 
@@ -118,56 +118,43 @@ def solve_puzzle_with_stats(pieces: List[List[int]]):
 
 
 def solve_puzzle(pieces: List[List[int]]):
-    """Convenience wrapper that returns only the solved grid."""
+    # Convenience wrapper that returns only the solved grid.
     result = solve_puzzle_with_stats(pieces)
     return None if result is None else result["grid"]
 
 
 def parse_pieces(text: str) -> List[List[int]]:
-    """Parse all integers from the input and group them into four-value pieces."""
+    # Parse all integers from the input and group them into four-value pieces.
     tokens = re.findall(r"-?\d+", text)
-    if not tokens:
-        return []
-
     values = [int(token) for token in tokens]
-    if len(values) % 4 != 0:
-        raise ValueError("Each piece must contain exactly four values")
-
-    pieces = []
-    for i in range(0, len(values), 4):
-        pieces.append(values[i : i + 4])
-    return pieces
+    return [values[i : i + 4] for i in range(0, len(values), 4)]
 
 
 def print_solution(grid: List[List[List[int]]]) -> None:
-    """Print the solved grid as one piece per line."""
+    # Print the solved grid as one piece per line without blank lines.
     for row in grid:
         for piece in row:
             print(*piece)
-        print()
 
 
 def main() -> None:
-    print("Enter the puzzle pieces as numbers, one piece per line or separated by spaces.")
-    print("Press Ctrl+Z (Windows) or Ctrl+D (Linux/macOS) when finished.")
-    text = sys.stdin.read().strip()
+    print("Input puzzle in row number form and press Enter on a blank line when finished:")
+    lines = []
+    while True:
+        line = sys.stdin.readline()
+        if line == "":
+            break
+        stripped = line.strip()
+        if not stripped:
+            break
+        lines.append(stripped)
+
+    text = "\n".join(lines)
     if not text and len(sys.argv) > 1:
         text = " ".join(sys.argv[1:])
-    if not text:
-        print("No puzzle input provided.")
-        return
 
-    try:
-        pieces = parse_pieces(text)
-    except ValueError as exc:
-        print(exc)
-        return
-
+    pieces = parse_pieces(text)
     result = solve_puzzle_with_stats(pieces)
-
-    if result is None:
-        print("No solution exists for the supplied pieces.")
-        return
 
     print("Solved puzzle:")
     print_solution(result["grid"])
