@@ -1,15 +1,7 @@
 import random
 
 # Format: [top, right, bottom, left] as signed numbers
-# Positive = head, negative = body; 1=green, 2=red, 3=purple, 4=yellow
-
-def encode_side(side):
-    """Convert a letter side to a signed number."""
-    if side is None:
-        return None
-    color = {'g': 1, 'r': 2, 'p': 3, 'y': 4}[side.lower()]
-    return color if side.islower() else -color
-
+# Use signed integers directly to represent color identities; the exact values are arbitrary.
 
 def opposite_side(side):
     """Return the opposite side with flipped sign."""
@@ -22,8 +14,9 @@ def rotate_piece(piece, times=1):
     return piece
 
 def random_side():
-    """Generate a random encoded side."""
-    return encode_side(random.choice('RrPpYyGg'))
+    """Generate a random signed number to represent a color."""
+    value = random.choice([1, 2, 3, 4])
+    return value if random.choice([True, False]) else -value
 
 
 def generate_puzzle(n):
@@ -123,7 +116,8 @@ for _ in range(total_puzzles):
     for piece in collect_pieces(scrambled):
         output_lines.append(" ".join(map(str, piece)))
 
-with open(f"scrambled_puzzles_{n}x{n}.txt", "w", encoding="utf-8") as f:
+output_filename = f"scrambledPuzzles_{n}x{n}_{total_puzzles}.txt"
+with open(output_filename, "w", encoding="utf-8") as f:
     f.write("\n".join(output_lines))
 
-print(f"Saved {total_puzzles} scrambled puzzles to scrambled_puzzles_{n}x{n}.txt")
+print(f"Saved {total_puzzles} scrambled puzzles to {output_filename}")
