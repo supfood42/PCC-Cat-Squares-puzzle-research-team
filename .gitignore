@@ -1,3 +1,8 @@
 *.txt
 /__pycache__
 *.zip
+*.exe
+*.ilk
+*.obj
+*.pdb
+*.json
