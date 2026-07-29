@@ -337,3 +337,10 @@ def find_matching_piece(
     return index, matching_piece
 
 #--------------------------------------------------------------------------------------------------------------
+
+
+#Fossilize layer
+#To be run at end of each layer population
+#stores the lapyer as a 2D array of pieces(int, idx of vectored_pieces), and rotation of each piece (uint8).
+#Appends to end of case(iteration)
+

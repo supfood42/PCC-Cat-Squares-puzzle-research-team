@@ -12,12 +12,26 @@ for i in range(numPuzzles):
     initialBoard = puzzleData[i]
     #vectorize board
     vectored_board = surgeon.board_to_bits_vector(initialBoard)
+    #Copies a board for elimination
+    availablePieces = vectored_board.copy()
     #initiaze the solving board (2D) with zeroes
     solvingBoard = np.zeros((n, n), dtype=np.uint16)
     #Places first piece
-    solvingBoard[0][0] = rng.choice(vectored_board)
+    starter_idx = rng.integers(availablePieces.size)
+    solvingBoard[0, 0] = availablePieces[starter_idx]
+    #pops first piece from pool
+    availablePieces = surgeon.swap_pop(availablePieces, starter_idx)
+    #Starts BFS
+    case = []
     
-    for layer in range(2*n-2):
-        #Transcribes matching sides from board
-        matching_sides = surgeon.transcribe_sides(solvingBoard, layer)
-        print([f"{value:08b}" for value in matching_sides])
+        for layer in range(2*n-2):
+            #Transcribes matching sides from board
+            matching_sides = surgeon.transcribe_sides(solvingBoard, layer)
+            #print([f"{value:08b}" for value in matching_sides])    just for seeing matching sides
+            for corner in matching_sides:
+                idx, piece = surgeon.find_matching_piece(corner,availablePieces)
+                if idx == -1:
+                    #No match found for this corner, discard this case
+                    break
+                availablePieces = surgeon.swap_pop(availablePieces, idx)
+                #Places piece on board
