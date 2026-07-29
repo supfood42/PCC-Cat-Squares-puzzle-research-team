@@ -27,7 +27,6 @@ from scoring import (
 )
 
 from frequency_stats import (
-    canonical_junction,
     load_statistics,
     record_solution_statistics,
     write_frequency_report,
@@ -48,8 +47,30 @@ SOLUTION_REPORT_FILE = (
 # For large puzzles, use 1.
 # For testing every 2 x 2 orientation-specific solution,
 # use a larger number such as 100.
-MAX_SOLUTIONS = 10
+MAX_SOLUTIONS = 1
 
+# ============================================================
+# PERFORMANCE SETTINGS
+# ============================================================
+
+# True when you want the first solution quickly.
+# False when you want to count many/all solutions.
+USE_CANDIDATE_SCORING = True
+
+# Print one progress line after this many solutions.
+# Use None to disable.
+SOLUTION_PROGRESS_INTERVAL = 40
+
+# Print a heartbeat after this many recursive calls.
+# Use None to disable.
+SEARCH_HEARTBEAT_INTERVAL = 1_000_000
+
+# Save only this many complete boards in memory.
+# The solver can still count more solutions.
+MAX_STORED_SOLUTIONS = 1
+
+# Write detailed information for only this many solutions.
+MAX_DETAILED_REPORT_SOLUTIONS = 1
 
 # ============================================================
 # INPUT
@@ -660,13 +681,9 @@ def learned_junction_score(
     )
 
     for junction in junctions:
-        canonical = canonical_junction(
-            junction
-        )
-
         key = ",".join(
             str(value)
-            for value in canonical
+            for value in junction
         )
 
         count = frequency_statistics[
@@ -679,6 +696,67 @@ def learned_junction_score(
         score += count
 
     return score
+
+
+def learned_neighbor_score(
+    grid: list,
+    row: int,
+    column: int,
+    n: int,
+    candidate_key: tuple[int, int],
+    candidates: dict,
+    frequency_statistics: dict,
+) -> float:
+    """
+    Score a candidate using recorded top/left-neighbor patterns.
+
+    This only changes search order. It never rejects a candidate.
+    """
+
+    frequency_table = frequency_statistics.get(
+        "neighbor_candidate_frequency",
+        {},
+    )
+
+    if not frequency_table:
+        return 0.0
+
+    candidate_value = ",".join(
+        str(edge)
+        for edge in candidates[candidate_key]["edges"]
+    )
+
+    if row > 0:
+        top_key = candidate_at(grid, row - 1, column, n)
+        if top_key is None:
+            top_value = "EMPTY"
+        else:
+            top_value = ",".join(
+                str(edge)
+                for edge in candidates[top_key]["edges"]
+            )
+    else:
+        top_value = "BOUNDARY"
+
+    if column > 0:
+        left_key = candidate_at(grid, row, column - 1, n)
+        if left_key is None:
+            left_value = "EMPTY"
+        else:
+            left_value = ",".join(
+                str(edge)
+                for edge in candidates[left_key]["edges"]
+            )
+    else:
+        left_value = "BOUNDARY"
+
+    key = (
+        f"top={top_value}|"
+        f"left={left_value}|"
+        f"candidate={candidate_value}"
+    )
+
+    return float(frequency_table.get(key, 0))
 
 
 # ============================================================
@@ -730,7 +808,27 @@ def solve_puzzle(
         candidates.keys()
     )
 
+    candidate_rarity = {}
+    for candidate_key in all_candidate_keys:
+        compatibility_data = compatibility[candidate_key]
+        total_options = (
+            len(compatibility_data["above"])
+            + len(compatibility_data["right"])
+            + len(compatibility_data["below"])
+            + len(compatibility_data["left"])
+        )
+        candidate_rarity[candidate_key] = 1.0 / max(total_options, 1)
+
     solutions = []
+
+    use_frequency_scoring = (
+        frequency_statistics.get(
+            "solutions_recorded",
+            0,
+        )
+        > 0
+    )
+    solution_count = 0
 
     statistics = {
         "recursive_calls": 0,
@@ -738,6 +836,7 @@ def solve_puzzle(
         "placements_accepted": 0,
         "backtracks": 0,
         "dead_ends": 0,
+        "stopped_at_solution_limit": False,
     }
 
     def candidate_search_score(
@@ -771,6 +870,21 @@ def solve_puzzle(
             statistics=frequency_statistics,
         )
 
+        rarity_score = candidate_rarity[candidate_key]
+
+        neighbor_score = learned_neighbor_score(
+            grid=grid,
+            row=row,
+            column=column,
+            n=n,
+            candidate_key=candidate_key,
+            candidates=candidates,
+            frequency_statistics=frequency_statistics,
+        )
+
+        if not use_frequency_scoring:
+            return base_score + 2.0 * rarity_score
+
         grid[position] = candidate_key
         remaining_inventory[type_id] -= 1
 
@@ -788,8 +902,12 @@ def solve_puzzle(
 
         return (
             base_score
+            + 2.0 * rarity_score
+            + 1.0 * neighbor_score
             + 0.25 * junction_score
         )
+
+    search_started_at = time.perf_counter()
 
     def search() -> bool:
         """
@@ -799,7 +917,28 @@ def solve_puzzle(
         been reached and all further searching should stop.
         """
 
+        nonlocal solution_count
+
         statistics["recursive_calls"] += 1
+
+        if (
+            SEARCH_HEARTBEAT_INTERVAL is not None
+            and statistics["recursive_calls"]
+            % SEARCH_HEARTBEAT_INTERVAL
+            == 0
+        ):
+            elapsed = (
+                time.perf_counter()
+                - search_started_at
+            )
+
+            print(
+                f"Still searching | "
+                f"time: {elapsed:.1f}s | "
+                f"calls: {statistics['recursive_calls']:,} | "
+                f"solutions: {solution_count:,} | "
+                f"attempts: {statistics['candidate_attempts']:,}"
+            )
 
         next_choice = choose_next_position(
             grid=grid,
@@ -810,15 +949,38 @@ def solve_puzzle(
         )
 
         # No empty positions remain.
-        if next_choice is None:
-            solutions.append(
-                list(grid)
-            )
 
-            return (
-                len(solutions)
-                >= max_solutions
-            )
+        if next_choice is None:
+            solution_count += 1
+
+            # Only retain a limited number of full boards.
+            if len(solutions) < MAX_STORED_SOLUTIONS:
+                solutions.append(
+                    list(grid)
+                )
+
+            if (
+                SOLUTION_PROGRESS_INTERVAL is not None
+                and solution_count % SOLUTION_PROGRESS_INTERVAL == 0
+            ):
+                elapsed = (
+                    time.perf_counter()
+                    - search_started_at
+                )
+
+                print(
+                    f"Progress: {solution_count:,} solutions found | "
+                    f"time: {elapsed:.1f} seconds"
+                )
+
+            if solution_count >= max_solutions:
+                statistics[
+                    "stopped_at_solution_limit"
+                ] = True
+
+                return True
+
+            return False
 
         row, column, possible_candidates = (
             next_choice
@@ -828,19 +990,24 @@ def solve_puzzle(
             statistics["dead_ends"] += 1
             return False
 
-        possible_candidates = sorted(
-            possible_candidates,
-            key=lambda candidate_key: (
-                candidate_search_score(
-                    candidate_key,
-                    row,
-                    column,
+        if USE_CANDIDATE_SCORING:
+            possible_candidates = sorted(
+                possible_candidates,
+                key=lambda candidate_key: (
+                    candidate_search_score(
+                        candidate_key,
+                        row,
+                        column,
+                    ),
+                    -candidate_key[0],
+                    -candidate_key[1],
                 ),
-                -candidate_key[0],
-                -candidate_key[1],
-            ),
-            reverse=True,
-        )
+                reverse=True,
+            )
+        else:
+            possible_candidates = list(
+                possible_candidates
+            )
 
         position = grid_index(
             row,
@@ -900,6 +1067,7 @@ def solve_puzzle(
 
     return (
         solutions,
+        solution_count,
         statistics,
     )
 
@@ -930,6 +1098,7 @@ def write_solver_report(
     piece_types: list[dict],
     candidates: dict,
     solutions: list[list],
+    solution_count: int,
     statistics: dict,
     global_check_result: dict,
     discrepancy: dict[int, int],
@@ -950,7 +1119,8 @@ def write_solver_report(
             "Distinct type-and-rotation candidates: "
             f"{len(candidates)}"
         ),
-        f"Solutions found: {len(solutions)}",
+        f"Solutions found: {solution_count}",
+        f"Complete boards stored: {len(solutions)}",
         "",
         "GLOBAL CHECKS",
         "-" * 80,
@@ -1031,9 +1201,17 @@ def write_solver_report(
             "NO SOLUTION WAS FOUND",
             "",
         ])
+    elif solution_count > len(solutions):
+        lines.extend([
+            "",
+            (
+                f"Only {len(solutions)} complete board(s) were "
+                f"stored to reduce memory and report-writing time."
+            ),
+        ])
 
     for solution_number, solution in enumerate(
-        solutions,
+        solutions[:MAX_DETAILED_REPORT_SOLUTIONS],
         start=1,
     ):
         lines.extend([
@@ -1285,7 +1463,7 @@ def main() -> None:
         time.perf_counter()
     )
 
-    solutions, statistics = solve_puzzle(
+    solutions, solution_count, statistics = solve_puzzle(
         n=n,
         piece_types=piece_types,
         candidates=candidates,
@@ -1343,6 +1521,7 @@ def main() -> None:
         piece_types=piece_types,
         candidates=candidates,
         solutions=solutions,
+        solution_count=solution_count,
         statistics=statistics,
         global_check_result=global_check_result,
         discrepancy=discrepancy,
@@ -1353,11 +1532,35 @@ def main() -> None:
     print(f"Board size: {n} x {n}")
     print(
         f"Solutions found: "
-        f"{len(solutions)}"
+        f"{solution_count:,}"
     )
+
+    if statistics["stopped_at_solution_limit"]:
+        print(
+            f"Search stopped after reaching the "
+            f"{MAX_SOLUTIONS:,}-solution limit."
+        )
+        print(
+            f"The puzzle has at least "
+            f"{solution_count:,} solutions."
+        )
+    else:
+        print(
+            "The complete search space was exhausted."
+        )
+        print(
+            f"Exact total solutions: "
+            f"{solution_count:,}"
+        )
+
+
     print(
         f"Search time: "
         f"{timing['search']:.6f} seconds"
+    )
+    print(
+        f"Total computation time: "
+        f"{timing['total']:.6f} seconds"
     )
     print(
         f"Candidate attempts: "

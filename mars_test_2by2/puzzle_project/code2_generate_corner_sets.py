@@ -1,146 +1,498 @@
 import json
 from pathlib import Path
 
-VALUE_ORDER = [1, 2, 3, 4, -1, -2, -3, -4]
-VALUE_TO_INDEX = {value: index for index, value in enumerate(VALUE_ORDER)}
+from code1_convert_pieces import (
+    pair_to_corner_id,
+    corner_id_to_pair,
+)
 
-OUTPUT_FILE = Path("unique_valid_corner_sets.json")
+
+# ============================================================
+# SETTINGS
+# ============================================================
+
+PROJECT_FOLDER = Path(__file__).resolve().parent
+
+JSON_OUTPUT_FILE = (
+    PROJECT_FOLDER
+    / "unique_valid_corner_sets.json"
+)
+
+TEXT_OUTPUT_FILE = (
+    PROJECT_FOLDER
+    / "unique_valid_corner_sets.txt"
+)
+
+REPORT_FILE = (
+    PROJECT_FOLDER
+    / "corner_set_generation_report.txt"
+)
 
 
-def pair_to_id(first, second):
-    """Convert [first, second] into an ID from 1 to 64."""
+# The exact order used by the corner-ID chart.
+VALUE_ORDER = [
+    1,
+    2,
+    3,
+    4,
+    -1,
+    -2,
+    -3,
+    -4,
+]
+
+
+# ============================================================
+# GENERATE ONE LOCAL JUNCTION
+# ============================================================
+
+def generate_corner_set(
+    a: int,
+    b: int,
+    c: int,
+    d: int,
+) -> tuple[int, int, int, int]:
+    """
+    Generate one fixed-orientation internal junction.
+
+    The four corner pairs are:
+
+        A = [a, b]
+        B = [c, d]
+        C = [-b, -c]
+        D = [-d, -a]
+
+    The returned order is fixed:
+
+        A = top-left piece's bottom-right corner
+        B = top-right piece's bottom-left corner
+        C = bottom-right piece's top-left corner
+        D = bottom-left piece's top-right corner
+
+    This order must not be rotationally canonicalized.
+    """
+
+    corner_a = pair_to_corner_id(
+        a,
+        b,
+    )
+
+    corner_b = pair_to_corner_id(
+        c,
+        d,
+    )
+
+    corner_c = pair_to_corner_id(
+        -b,
+        -c,
+    )
+
+    corner_d = pair_to_corner_id(
+        -d,
+        -a,
+    )
+
     return (
-        VALUE_TO_INDEX[first] * 8
-        + VALUE_TO_INDEX[second]
-        + 1
+        corner_a,
+        corner_b,
+        corner_c,
+        corner_d,
     )
 
 
-def id_to_pair(corner_id):
-    """Convert an ID from 1 to 64 back into [first, second]."""
-    position = corner_id - 1
+# ============================================================
+# GENERATE ALL 4096 ORIENTED SETS
+# ============================================================
 
-    return [
-        VALUE_ORDER[position // 8],
-        VALUE_ORDER[position % 8],
-    ]
-
-
-def complete_set(first_id, second_id):
+def generate_all_oriented_corner_sets(
+) -> list[tuple[int, int, int, int]]:
     """
-    A = [a, b]
-    B = [c, d]
-    C = [-b, -c]
-    D = [-d, -a]
-    """
+    Generate all fixed-orientation local junctions.
 
-    a, b = id_to_pair(first_id)
-    c, d = id_to_pair(second_id)
+    There are four independent variables:
 
-    third_id = pair_to_id(-b, -c)
-    fourth_id = pair_to_id(-d, -a)
+        a, b, c, d
 
-    return [
-        first_id,
-        second_id,
-        third_id,
-        fourth_id,
-    ]
+    Each has eight possible values.
 
+        8 x 8 x 8 x 8 = 4096
 
-def canonical_rotation(corners):
-    """
-    Treat all rotations of a square as the same set.
-
-    Example:
-        [64, 22, 33, 17]
-        [22, 33, 17, 64]
-        [33, 17, 64, 22]
-        [17, 64, 22, 33]
-
-    All become:
-        (17, 64, 22, 33)
+    Rotations are intentionally treated as different.
     """
 
-    rotations = [
-        tuple(corners[i:] + corners[:i])
-        for i in range(4)
-    ]
+    valid_sets = []
 
-    return min(rotations)
+    for a in VALUE_ORDER:
+        for b in VALUE_ORDER:
+            for c in VALUE_ORDER:
+                for d in VALUE_ORDER:
+                    corner_set = generate_corner_set(
+                        a,
+                        b,
+                        c,
+                        d,
+                    )
 
-
-def generate_unique_sets():
-    """Generate valid sets and remove rotational duplicates."""
-
-    unique_sets = set()
-
-    for first_id in range(1, 65):
-        for second_id in range(1, 65):
-            corners = complete_set(first_id, second_id)
-            unique_sets.add(canonical_rotation(corners))
-
-    return sorted(unique_sets)
-
-
-def save_sets(valid_sets):
-    """Save the sets permanently as a JSON file."""
-
-    data = {
-        "value_order": VALUE_ORDER,
-        "rotations_count_as_same": True,
-        "number_of_sets": len(valid_sets),
-        "valid_sets": [list(item) for item in valid_sets],
-    }
-
-    with OUTPUT_FILE.open("w", encoding="utf-8") as file:
-        json.dump(data, file, indent=2)
-
-
-def load_sets():
-    """Load the previously saved sets."""
-
-    with OUTPUT_FILE.open("r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    return data["valid_sets"]
-
-
-def save_text_file(valid_sets):
-    with open(
-        "unique_valid_corner_sets.txt",
-        "w",
-        encoding="utf-8"
-    ) as file:
-
-        for corners in valid_sets:
-            file.write(str(list(corners)) + "\n")
-
-def main():
-    if OUTPUT_FILE.exists():
-        print(f"Loading saved sets from: {OUTPUT_FILE.resolve()}")
-        valid_sets = load_sets()
-    else:
-        print("Generating unique valid sets...")
-        valid_sets = generate_unique_sets()
-
-    # Save both files every time.
-    save_sets(valid_sets)
-    save_text_file(valid_sets)
-
-    print(f"JSON file: {OUTPUT_FILE.resolve()}")
-    print(
-        "Text file:",
-        Path("unique_valid_corner_sets.txt").resolve()
-    )
-
-    print(f"Number of unique sets: {len(valid_sets)}")
-
-    print("\nFirst 10 sets:")
-    for corners in valid_sets[:10]:
-        print(corners)
+                    valid_sets.append(
+                        corner_set
+                    )
 
     return valid_sets
 
 
-valid_corner_sets = main()
+# ============================================================
+# VERIFY COMPLETENESS
+# ============================================================
+
+def verify_generated_sets(
+    valid_sets: list[
+        tuple[int, int, int, int]
+    ],
+) -> None:
+    """
+    Confirm that all 4096 possibilities were generated
+    and that no two fixed-orientation sets are identical.
+    """
+
+    expected_count = (
+        len(VALUE_ORDER) ** 4
+    )
+
+    actual_count = len(
+        valid_sets
+    )
+
+    unique_count = len(
+        set(valid_sets)
+    )
+
+    if actual_count != expected_count:
+        raise AssertionError(
+            "Incorrect generated-set count.\n"
+            f"Expected: {expected_count}\n"
+            f"Generated: {actual_count}"
+        )
+
+    if unique_count != expected_count:
+        raise AssertionError(
+            "Some oriented sets were duplicated.\n"
+            f"Expected unique sets: {expected_count}\n"
+            f"Actual unique sets: {unique_count}"
+        )
+
+    for index, corner_set in enumerate(
+        valid_sets,
+        start=1,
+    ):
+        if len(corner_set) != 4:
+            raise AssertionError(
+                f"Set {index} does not contain "
+                f"exactly four corners."
+            )
+
+        for corner_id in corner_set:
+            if not 1 <= corner_id <= 64:
+                raise AssertionError(
+                    f"Set {index} contains invalid "
+                    f"corner ID {corner_id}."
+                )
+
+
+# ============================================================
+# SAVE JSON
+# ============================================================
+
+def save_json(
+    valid_sets: list[
+        tuple[int, int, int, int]
+    ],
+) -> None:
+    """
+    Save all 4096 oriented sets in machine-readable form.
+    """
+
+    data = {
+        "description": (
+            "All valid fixed-orientation internal "
+            "four-corner junctions."
+        ),
+        "orientation_order": [
+            (
+                "top-left piece bottom-right corner"
+            ),
+            (
+                "top-right piece bottom-left corner"
+            ),
+            (
+                "bottom-right piece top-left corner"
+            ),
+            (
+                "bottom-left piece top-right corner"
+            ),
+        ],
+        "rotations_are_distinct": True,
+        "value_order": VALUE_ORDER,
+        "total_sets": len(valid_sets),
+        "valid_sets": [
+            list(corner_set)
+            for corner_set in valid_sets
+        ],
+    }
+
+    with JSON_OUTPUT_FILE.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            data,
+            file,
+            indent=2,
+        )
+
+
+# ============================================================
+# SAVE READABLE TEXT FILE
+# ============================================================
+
+def save_text(
+    valid_sets: list[
+        tuple[int, int, int, int]
+    ],
+) -> None:
+    """
+    Save a readable numbered list of all oriented sets.
+    """
+
+    lines = [
+        "ALL FIXED-ORIENTATION VALID CORNER SETS",
+        "=" * 80,
+        "",
+        (
+            "Order:"
+        ),
+        (
+            "A = top-left piece bottom-right corner"
+        ),
+        (
+            "B = top-right piece bottom-left corner"
+        ),
+        (
+            "C = bottom-right piece top-left corner"
+        ),
+        (
+            "D = bottom-left piece top-right corner"
+        ),
+        "",
+        (
+            "Rotated versions are stored separately."
+        ),
+        (
+            f"Total sets: {len(valid_sets)}"
+        ),
+        "",
+        "NUMBER    CORNER IDS",
+        "-" * 80,
+    ]
+
+    for set_number, corner_set in enumerate(
+        valid_sets,
+        start=1,
+    ):
+        lines.append(
+            f"{set_number:<9} "
+            f"{list(corner_set)}"
+        )
+
+    lines.extend([
+        "",
+        "=" * 80,
+        "END OF CORNER SETS",
+        "",
+    ])
+
+    with TEXT_OUTPUT_FILE.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        file.write(
+            "\n".join(lines)
+        )
+
+
+# ============================================================
+# OPTIONAL DETAILED REPORT
+# ============================================================
+
+def save_generation_report(
+    valid_sets: list[
+        tuple[int, int, int, int]
+    ],
+) -> None:
+    """
+    Save examples with both corner IDs and decoded pairs.
+    """
+
+    lines = [
+        "CORNER SET GENERATION REPORT",
+        "=" * 80,
+        "",
+        (
+            f"Total generated sets: "
+            f"{len(valid_sets)}"
+        ),
+        (
+            f"Total unique oriented sets: "
+            f"{len(set(valid_sets))}"
+        ),
+        "",
+        (
+            "Rotations were not combined."
+        ),
+        "",
+        "FIRST 25 SETS",
+        "-" * 80,
+    ]
+
+    for index, corner_set in enumerate(
+        valid_sets[:25],
+        start=1,
+    ):
+        decoded_pairs = [
+            list(
+                corner_id_to_pair(
+                    corner_id
+                )
+            )
+            for corner_id in corner_set
+        ]
+
+        lines.extend([
+            f"Set {index}",
+            (
+                f"  Corner IDs: "
+                f"{list(corner_set)}"
+            ),
+            (
+                f"  Corner pairs: "
+                f"{decoded_pairs}"
+            ),
+            "",
+        ])
+
+    lines.extend([
+        "LAST 25 SETS",
+        "-" * 80,
+    ])
+
+    start_number = (
+        len(valid_sets)
+        - 24
+    )
+
+    for offset, corner_set in enumerate(
+        valid_sets[-25:],
+    ):
+        set_number = (
+            start_number
+            + offset
+        )
+
+        decoded_pairs = [
+            list(
+                corner_id_to_pair(
+                    corner_id
+                )
+            )
+            for corner_id in corner_set
+        ]
+
+        lines.extend([
+            f"Set {set_number}",
+            (
+                f"  Corner IDs: "
+                f"{list(corner_set)}"
+            ),
+            (
+                f"  Corner pairs: "
+                f"{decoded_pairs}"
+            ),
+            "",
+        ])
+
+    lines.extend([
+        "=" * 80,
+        "END OF REPORT",
+        "",
+    ])
+
+    with REPORT_FILE.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        file.write(
+            "\n".join(lines)
+        )
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main() -> None:
+    valid_sets = (
+        generate_all_oriented_corner_sets()
+    )
+
+    verify_generated_sets(
+        valid_sets
+    )
+
+    save_json(
+        valid_sets
+    )
+
+    save_text(
+        valid_sets
+    )
+
+    save_generation_report(
+        valid_sets
+    )
+
+    print(
+        "Corner-set generation completed."
+    )
+
+    print(
+        f"Generated sets: "
+        f"{len(valid_sets)}"
+    )
+
+    print(
+        f"Unique oriented sets: "
+        f"{len(set(valid_sets))}"
+    )
+
+    print(
+        "\nRotations were preserved as "
+        "separate possibilities."
+    )
+
+    print(
+        f"\nJSON file:\n"
+        f"{JSON_OUTPUT_FILE}"
+    )
+
+    print(
+        f"\nText file:\n"
+        f"{TEXT_OUTPUT_FILE}"
+    )
+
+    print(
+        f"\nReport file:\n"
+        f"{REPORT_FILE}"
+    )
+
+
+if __name__ == "__main__":
+    main()
