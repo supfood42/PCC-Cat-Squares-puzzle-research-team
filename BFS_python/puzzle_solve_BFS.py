@@ -1,7 +1,8 @@
 import numpy as np
 import sys
 import os
-import catPuzzleHandling as surgeon
+import BFS_python.catPuzzleHandling as surgeon
+import BFS_python.BFS_functions as BFS
 # Since the function only returns one thing, we only need one variable here!
 puzzleData, n, numPuzzles = surgeon.load_puzzles()
 #initialize rng
@@ -22,14 +23,16 @@ for i in range(numPuzzles):
     #pops first piece from pool
     availablePieces = surgeon.swap_pop(availablePieces, starter_idx)
     #Starts BFS
+    bfs_all_cases = []
+    
     case = []
     
         for layer in range(2*n-2):
             #Transcribes matching sides from board
-            matching_sides = surgeon.transcribe_sides(solvingBoard, layer)
+            matching_sides = BFS.transcribe_sides(solvingBoard, layer)
             #print([f"{value:08b}" for value in matching_sides])    just for seeing matching sides
             for corner in matching_sides:
-                idx, piece = surgeon.find_matching_piece(corner,availablePieces)
+                idx, piece = BFS.find_matching_piece(corner,availablePieces)
                 if idx == -1:
                     #No match found for this corner, discard this case
                     break
