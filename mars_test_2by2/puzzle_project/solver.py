@@ -47,7 +47,7 @@ SOLUTION_REPORT_FILE = (
 # For large puzzles, use 1.
 # For testing every 2 x 2 orientation-specific solution,
 # use a larger number such as 100.
-MAX_SOLUTIONS = 1
+MAX_SOLUTIONS = 100000
 
 # ============================================================
 # PERFORMANCE SETTINGS
@@ -772,7 +772,7 @@ def solve_puzzle(
     initial_inventory: Counter,
     discrepancy: dict[int, int],
     frequency_statistics: dict,
-    max_solutions: int = 1,
+    max_solutions: int = 100000,
 ) -> tuple[list[list], dict]:
     """
     Solve an n x n puzzle using:
