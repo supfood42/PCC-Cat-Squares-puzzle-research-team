@@ -73,6 +73,11 @@ def rotate_piece(piece):
     #rotates puzzle piece clockwise
     return [piece[3], piece[0], piece[1], piece[2]]
 
+def rotate_piece_inBits(piece):
+    #Rotate packed [Top][Right][Bottom][Left] clockwise once.
+    piece = int(piece) & 0xFFFF
+    return np.uint16((piece >> 4) | ((piece & 0xF) << 12))
+
 '''
 def pick_random_piece_fromBoard(board):
     recieves a single board and picks a random piece from it, reporting it's coordinates for extermination.
@@ -109,6 +114,92 @@ def pick_random_piece_fromList(available_pieces):
     remaining_pieces = available_pieces[:-1]
 
     return picked_piece, remaining_pieces
-# Fie load check
-if __name__ == "__main__":
-    puzzleData = load_puzzles()
+
+def swap_pop(
+    available_pieces: np.ndarray,
+    index: int,
+) -> np.ndarray:
+    """
+    Remove one piece without preserving array order.
+
+    The last piece replaces the removed piece, and the active
+    array view is shortened by one element.
+    """
+    available_pieces[index] = available_pieces[-1]
+
+    return available_pieces[:-1]
+
+#--------Code that converts row-number into the more superawesome bit form
+# Negative edges get single 1-bits; Positive edges get their exact bitwise inverses.
+EDGE_TO_BIT = {
+    -1: 0b1000,  # 8
+    -2: 0b0100,  # 4
+    -3: 0b0010,  # 2
+    -4: 0b0001,  # 1
+    +1: 0b0111,  # 7
+    +2: 0b1011,  # 11
+    +3: 0b1101,  # 13
+    +4: 0b1110,  # 14
+}
+
+# Inverse map to convert nibbles back to original signed integers
+BIT_TO_EDGE = {v: k for k, v in EDGE_TO_BIT.items()}
+
+def piece_to_bits(piece: np.ndarray) -> int:
+    """Converts a 1D NumPy array of 4 signed edges into a packed 16-bit integer."""
+    top = EDGE_TO_BIT[int(piece[0])]
+    right = EDGE_TO_BIT[int(piece[1])]
+    bottom = EDGE_TO_BIT[int(piece[2])]
+    left = EDGE_TO_BIT[int(piece[3])]
+
+    # Shift each 4-bit nibble into position:
+    # [Top (bits 12-15)] [Right (bits 8-11)] [Bottom (bits 4-7)] [Left (bits 0-3)]
+    packed_16bit = (top << 12) | (right << 8) | (bottom << 4) | left
+
+    return packed_16bit
+
+def bits_to_piece(packed_16bit: int) -> np.ndarray:
+    """Extracts a 16-bit packed integer back into a 1D NumPy array [Top, Right, Bottom, Left]."""
+    MASK = 0xF  # 0b1111 (isolates 4 bits at a time)
+
+    top_nibble = (packed_16bit >> 12) & MASK
+    right_nibble = (packed_16bit >> 8) & MASK
+    bottom_nibble = (packed_16bit >> 4) & MASK
+    left_nibble = packed_16bit & MASK
+
+    return np.array(
+        [
+            BIT_TO_EDGE[top_nibble],
+            BIT_TO_EDGE[right_nibble],
+            BIT_TO_EDGE[bottom_nibble],
+            BIT_TO_EDGE[left_nibble],
+        ],
+        dtype=int,
+    )
+
+def board_to_bits_vector(board: np.ndarray) -> np.ndarray:
+    """Dissects a 3D board array (n, n, 4) into a 1D NumPy vector of 16-bit packed integers
+
+    in left-to-right, top-to-bottom order.
+    """
+    n = board.shape[0]
+
+    # Reshape (n, n, 4) into a 2D array of pieces (n*n, 4)
+    # NumPy's default reshaping operates row-by-row (left-to-right, top-down)
+    flat_pieces = board.reshape(n * n, 4)
+
+    # Convert each 4-element piece vector to its packed 16-bit integer
+    vector_1d = np.array(
+        [piece_to_bits(p) for p in flat_pieces], dtype=np.uint16
+    )
+
+    return vector_1d
+
+def bits_vector_to_board(vector_1d: np.ndarray, n: int) -> np.ndarray:
+    """Reconstructs an (n, n, 4) 3D board array from a 1D vector of packed 16-bit integers."""
+    # Unpack each 16-bit int into a [4] array -> results in shape (n*n, 4)
+    flat_pieces = np.array([bits_to_piece(b) for b in vector_1d], dtype=int)
+
+    # Reshape back to 3D grid layout (n, n, 4)
+    return flat_pieces.reshape(n, n, 4)
+
