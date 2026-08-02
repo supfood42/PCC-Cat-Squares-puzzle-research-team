@@ -49,7 +49,8 @@ for i in range(numPuzzles):
     initialBoard = puzzleData[i]
     #vectorize board
     vectored_board = surgeon.board_to_bits_vector(initialBoard)
-
+    #Generate board lookup 
+    lookup = BFS.build_lookup(vectored_board)
     #THE code
     queue = deque()
     #queue of death. destroyer of all worlds
@@ -87,9 +88,9 @@ for i in range(numPuzzles):
             solvingBoard, available_mask = queue.popleft()
             #breed children from it
             children = BFS.compute_layer(
-                solvingBoard,
-                available_mask,
-                vectored_board
+            solvingBoard,
+            available_mask,
+            lookup,
             )
             #make the children stand to be ready to breed at next layer
             queue.extend(children)

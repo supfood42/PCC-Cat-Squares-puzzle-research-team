@@ -1,5 +1,5 @@
 import numpy as np
-
+import catPuzzleHandling as surgeon
 def transcribe_sides(solvingBoard: np.ndarray, layer: int) -> np.ndarray:
     """
     Return a 1D NumPy array of uint8 target corners for the next diagonal.
@@ -150,23 +150,15 @@ import catPuzzleHandling as surgeon
 def compute_layer(
     solvingBoard: np.ndarray,
     available_mask: np.ndarray,
-    vectored_board: np.ndarray,
+    lookup: list[list[tuple[int, np.uint16]]],
 ):
-    """
-    Fill the next empty diagonal in every possible way.
-
-    Returns a list of children:
-        [(child_board, child_mask), ...]
-    """
+    """Fill the next empty diagonal using the precomputed lookup."""
     n = solvingBoard.shape[0]
 
-    # Find the first diagonal that has not been filled.
     next_layer = None
-
     for layer in range(2 * n - 1):
         min_col = max(0, layer - n + 1)
         max_col = min(layer, n - 1)
-
         cols = np.arange(min_col, max_col + 1)
         rows = layer - cols
 
@@ -177,7 +169,6 @@ def compute_layer(
     if next_layer is None:
         return []
 
-    # Coordinates of the next diagonal, bottom-left to top-right.
     min_col = max(0, next_layer - n + 1)
     max_col = min(next_layer, n - 1)
 
@@ -186,8 +177,7 @@ def compute_layer(
         for col in range(min_col, max_col + 1)
     ]
 
-    # Calculate the required top and left edge for each position.
-    target_corners = []
+    position_candidates = []
 
     for row, col in coordinates:
         required_top = 0
@@ -195,80 +185,100 @@ def compute_layer(
 
         if row > 0:
             piece_above = int(solvingBoard[row - 1, col])
-            bottom_edge = (piece_above >> 4) & 0x0F
-            required_top = bottom_edge ^ 0x0F
+            required_top = ((piece_above >> 4) & 0x0F) ^ 0x0F
 
         if col > 0:
             piece_left = int(solvingBoard[row, col - 1])
-            right_edge = (piece_left >> 8) & 0x0F
-            required_left = right_edge ^ 0x0F
+            required_left = ((piece_left >> 8) & 0x0F) ^ 0x0F
 
-        target_corner = np.uint8(
-            (required_top << 4) | required_left
-        )
+        if required_top and required_left:
+            top_index = surgeon.EDGE_INDEX[required_top]
+            left_index = surgeon.EDGE_INDEX[required_left]
+            candidates = lookup[top_index * 8 + left_index]
 
-        target_corners.append(target_corner)
+        elif required_top:
+            top_index = surgeon.EDGE_INDEX[required_top]
+            candidates = [
+                candidate
+                for left_index in range(8)
+                for candidate in lookup[top_index * 8 + left_index]
+            ]
+
+        elif required_left:
+            left_index = surgeon.EDGE_INDEX[required_left]
+            candidates = [
+                candidate
+                for top_index in range(8)
+                for candidate in lookup[top_index * 8 + left_index]
+            ]
+
+        else:
+            candidates = [
+                candidate
+                for corner_candidates in lookup
+                for candidate in corner_candidates
+            ]
+
+        position_candidates.append(candidates)
 
     children = []
-
-    # Use one working copy and backtrack through every possibility.
     working_board = solvingBoard.copy()
     working_mask = available_mask.copy()
 
-    def fill_position(position_index):
-        # The entire diagonal has been filled.
+    def fill_position(position_index: int):
         if position_index == len(coordinates):
             children.append(
-                (
-                    working_board.copy(),
-                    working_mask.copy(),
-                )
+                (working_board.copy(), working_mask.copy())
             )
             return
 
         row, col = coordinates[position_index]
-        target_corner = int(target_corners[position_index])
 
-        target_top = (target_corner >> 4) & 0x0F
-        target_left = target_corner & 0x0F
+        for piece_index, rotated_piece in position_candidates[position_index]:
+            if not working_mask[piece_index]:
+                continue
 
-        # Every True index represents one available physical piece.
-        for piece_index in np.flatnonzero(working_mask):
-            rotated_piece = np.uint16(
-                vectored_board[piece_index]
-            )
+            working_board[row, col] = rotated_piece
+            working_mask[piece_index] = False
 
-            # Test all four rotations separately.
-            for _ in range(4):
-                packed_piece = int(rotated_piece)
+            fill_position(position_index + 1)
 
-                piece_top = (packed_piece >> 12) & 0x0F
-                piece_left = packed_piece & 0x0F
-
-                top_matches = (
-                    target_top == 0
-                    or piece_top == target_top
-                )
-
-                left_matches = (
-                    target_left == 0
-                    or piece_left == target_left
-                )
-
-                if top_matches and left_matches:
-                    working_board[row, col] = rotated_piece
-                    working_mask[piece_index] = False
-
-                    fill_position(position_index + 1)
-
-                    # Undo this placement before trying another branch.
-                    working_mask[piece_index] = True
-                    working_board[row, col] = np.uint16(0)
-
-                rotated_piece = surgeon.rotate_piece_inBits(
-                    rotated_piece
-                )
+            working_mask[piece_index] = True
+            working_board[row, col] = np.uint16(0)
 
     fill_position(0)
-
     return children
+
+
+
+def build_lookup(
+    vectored_board: np.ndarray,
+) -> list[list[tuple[int, np.uint16]]]:
+    """Map each of 64 top-left edge combinations to matching pieces."""
+    lookup = [[] for _ in range(64)]
+
+    for piece_index, piece in enumerate(vectored_board):
+        rotated_piece = np.uint16(piece)
+        seen_rotations = set()
+
+        for _ in range(4):
+            packed = int(rotated_piece)
+
+            if packed not in seen_rotations:
+                seen_rotations.add(packed)
+
+                top = (packed >> 12) & 0x0F
+                left = packed & 0x0F
+
+                corner_index = (
+                    surgeon.EDGE_INDEX[top] * 8
+                    + surgeon.EDGE_INDEX[left]
+                )
+
+                lookup[corner_index].append(
+                    (piece_index, rotated_piece)
+                )
+
+            rotated_piece = surgeon.rotate_piece_inBits(rotated_piece)
+
+    return lookup
