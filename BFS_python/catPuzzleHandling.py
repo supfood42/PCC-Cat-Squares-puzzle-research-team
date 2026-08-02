@@ -142,6 +142,11 @@ EDGE_TO_BIT = {
     +4: 0b1110,  # 14
 }
 
+EDGE_INDEX = {
+    edge: index
+    for index, edge in enumerate(EDGE_TO_BIT.values())
+}
+
 # Inverse map to convert nibbles back to original signed integers
 BIT_TO_EDGE = {v: k for k, v in EDGE_TO_BIT.items()}
 
