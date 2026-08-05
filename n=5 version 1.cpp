@@ -4,13 +4,13 @@
 
 using namespace std;
 
-const int N = 10;
+const int N = 5;
 
-int n = 10;
+int n = 5;
 
 struct Edge
 {
-    int value;    
+    int value;
 };
 
 struct Piece
@@ -33,6 +33,9 @@ Cell board[N][N];
 bool used[N * N];
 
 long long nodes = 0;
+long long solutions = 0;
+
+time_t start;
 
 bool match(Edge a, Edge b)
 {
@@ -62,6 +65,7 @@ void build_rotations()
             rot[i][r] = rotate90(rot[i][r - 1]);
     }
 }
+
 bool valid(int r, int c)
 {
     Piece &cur = board[r][c].p;
@@ -81,12 +85,28 @@ bool valid(int r, int c)
     return true;
 }
 
-bool dfs(int pos)
+void dfs(int pos)
 {
     nodes++;
 
     if (pos == n * n)
-        return true;
+    {
+        solutions++;
+
+        if (solutions % 40 == 0)
+        {
+            time_t now = time(NULL);
+
+            cout << "Solutions found: "
+                 << solutions
+                 << "    Time: "
+                 << difftime(now, start)
+                 << " s"
+                 << '\n';
+        }
+
+        return;
+    }
 
     int r = pos / n;
     int c = pos % n;
@@ -106,20 +126,17 @@ bool dfs(int pos)
             {
                 used[i] = true;
 
-                if (dfs(pos + 1))
-                    return true;
+                dfs(pos + 1);
 
                 used[i] = false;
             }
         }
     }
-
-    return false;
 }
 
 int main()
 {
-    clock_t start = clock();
+    start = time(NULL);
 
     cout << "Puzzle size = " << n << "x" << '\n';
     cout << "Enter " << n * n << " pieces:\n";
@@ -134,39 +151,34 @@ int main()
     }
 
     for (int i = 0; i < n * n; i++)
+    {
         used[i] = false;
+    }
 
     build_rotations();
 
-    if (dfs(0))
-    {
-        cout << "\nSolved!\n\n";
+    dfs(0);
 
-        for (int i = 0; i < n; i++)
-        {
-            for (int j = 0; j < n; j++)
-            {
-                cout << board[i][j].id
-                     << "("
-                     << board[i][j].rot
-                     << ") ";
-            }
-
-            cout << '\n';
-        }
-    }
-    else
+    if (solutions == 0)
     {
         cout << "\nNo solution\n";
     }
+    else
+    {
+        cout << "\nTotal Solutions: "
+             << solutions
+             << '\n';
+    }
 
-    clock_t end = clock();
+    time_t end = time(NULL);
 
-    cout << "\nTime: "
-         << 1000.0 * (end - start) / CLOCKS_PER_SEC
-         << " ms\n";
+    cout << "\nTotal Time: "
+         << difftime(end, start)
+         << " s\n";
 
-    cout << "Tries: " << nodes << '\n';
+    cout << "Tries: "
+         << nodes
+         << '\n';
 
     return 0;
 }
