@@ -8,9 +8,9 @@
 
 using namespace std;
 
-const int N = 10;
+const int N = 6;
 
-int n = 10;
+int n = 6;
 
 struct Edge
 {
