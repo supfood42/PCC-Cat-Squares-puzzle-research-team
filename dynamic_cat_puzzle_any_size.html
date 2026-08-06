@@ -7,7 +7,8 @@
 <style>
 :root {
   --bg:#eef1f5; --panel:#fff; --border:#c8ced7; --text:#20242a; --muted:#697586;
-  --cell:132px; --gap:54px;
+  --cell:132px; --gap:54px; --connector:40px; --connector-shift:6px;
+  --board-padding:72px; --pool-padding:56px;
 }
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
@@ -31,32 +32,34 @@ button.primary{background:#2367d1;border-color:#2367d1;color:#fff}
 .panel-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
 .panel-title h2{margin:0;font-size:20px}
 .panel-title span{color:var(--muted);font-size:14px}
-.board-wrapper{overflow:auto;padding:72px;border:1px solid #d8dce2;border-radius:10px;background:#f8f9fb}
+.board-wrapper{overflow:auto;padding:var(--board-padding);border:1px solid #d8dce2;border-radius:10px;background:#f8f9fb}
 #board{display:grid;gap:0;width:max-content;margin:auto}
-#pool{display:grid;grid-template-columns:repeat(2,var(--cell));gap:var(--gap);max-height:760px;overflow:auto;padding:56px;border:1px solid #d8dce2;border-radius:10px;background:#f8f9fb}
+#pool{display:grid;grid-template-columns:repeat(auto-fill,var(--cell));justify-content:center;gap:var(--gap);max-height:min(760px,calc(100vh - 120px));overflow:auto;padding:var(--pool-padding);border:1px solid #d8dce2;border-radius:10px;background:#f8f9fb}
 .slot{position:relative;width:var(--cell);height:var(--cell);border:2px dashed #bcc3cc;border-radius:10px;background:rgba(255,255,255,.72);overflow:visible}
 .slot.board-slot::after{content:attr(data-position);position:absolute;inset:0;display:grid;place-items:center;color:#c1c6cd;font-size:13px;pointer-events:none}
 .slot.drop-target{border-color:#2367d1;background:#eaf2ff}.board-slot>.tile{inset:0;border-radius:0}.board-slot.has-tile{border:none;background:transparent}
 .tile{position:absolute;inset:4px;background:#fff;border:2px solid #222;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.16);cursor:grab;user-select:none;touch-action:none;overflow:hidden;z-index:2}
 .tile.dragging-source{opacity:.25}
-.edge{position:absolute;width:40px;height:40px;pointer-events:none;z-index:4}
+.edge{position:absolute;width:var(--connector);height:var(--connector);pointer-events:none;z-index:4}
 .edge.top{top:0;left:50%;transform:translateX(-50%)}
 .edge.right{right:0;top:50%;transform:translateY(-50%)}
 .edge.bottom{bottom:0;left:50%;transform:translateX(-50%)}
 .edge.left{left:0;top:50%;transform:translateY(-50%)}.edge.top.body-edge{top:-3px}.edge.right.body-edge{right:-3px}.edge.bottom.body-edge{bottom:-3px}.edge.left.body-edge{left:-3px}
-.cat-connector{display:block;width:40px;height:40px;object-fit:contain;pointer-events:none;user-select:none}
-.edge.top .cat-connector.head{transform:rotate(180deg) translateX(-6px)}
-.edge.right .cat-connector.head{transform:rotate(-90deg) translateX(-6px)}
-.edge.bottom .cat-connector.head{transform:rotate(0deg) translateX(-6px)}
-.edge.left .cat-connector.head{transform:rotate(90deg) translateX(-6px)}
-.edge.top .cat-connector.body{transform:rotate(0deg) translateX(6px)}
-.edge.right .cat-connector.body{transform:rotate(90deg) translateX(6px)}
-.edge.bottom .cat-connector.body{transform:rotate(180deg) translateX(6px)}
-.edge.left .cat-connector.body{transform:rotate(-90deg) translateX(6px)}
+.cat-connector{display:block;width:var(--connector);height:var(--connector);object-fit:contain;pointer-events:none;user-select:none}
+.edge.top .cat-connector.head{transform:rotate(180deg) translateX(calc(-1 * var(--connector-shift)))}
+.edge.right .cat-connector.head{transform:rotate(-90deg) translateX(calc(-1 * var(--connector-shift)))}
+.edge.bottom .cat-connector.head{transform:rotate(0deg) translateX(calc(-1 * var(--connector-shift)))}
+.edge.left .cat-connector.head{transform:rotate(90deg) translateX(calc(-1 * var(--connector-shift)))}
+.edge.top .cat-connector.body{transform:rotate(0deg) translateX(var(--connector-shift))}
+.edge.right .cat-connector.body{transform:rotate(90deg) translateX(var(--connector-shift))}
+.edge.bottom .cat-connector.body{transform:rotate(180deg) translateX(var(--connector-shift))}
+.edge.left .cat-connector.body{transform:rotate(-90deg) translateX(var(--connector-shift))}
 .drag-ghost{position:fixed;width:calc(var(--cell) - 8px);height:calc(var(--cell) - 8px);pointer-events:none;z-index:9999;opacity:.92;transform:rotate(2deg)}
 .instructions{margin-top:14px;padding:12px;border-radius:8px;background:#f4f6f8;color:#4d5562;font-size:14px;line-height:1.55}
-@media(max-width:1150px){.workspace{grid-template-columns:1fr}#pool{grid-template-columns:repeat(auto-fill,var(--cell));max-height:none}}
-@media(max-width:760px){:root{--cell:106px;--gap:44px}.controls{grid-template-columns:1fr}.board-wrapper{padding:58px}#pool{padding:48px}.edge,.cat-connector{width:30px;height:30px}.edge.top{top:2px}.edge.right{right:2px}.edge.bottom{bottom:2px}.edge.left{left:2px}}
+#board.hide-positions .slot.board-slot::after{display:none}
+#board.compact-positions .slot.board-slot::after{font-size:10px}
+@media(max-width:1150px){.workspace{grid-template-columns:1fr}#pool{max-height:none}}
+@media(max-width:760px){.controls{grid-template-columns:1fr}.edge.top{top:2px}.edge.right{right:2px}.edge.bottom{bottom:2px}.edge.left{left:2px}}
 </style>
 </head>
 <body>
@@ -82,7 +85,7 @@ button.primary{background:#2367d1;border-color:#2367d1;color:#fff}
   <div class="panel button-panel">
     <button id="generateButton" class="primary">Generate Puzzle</button>
     <button id="resetButton">Reset Pieces</button>
-    <div id="message">Enter 9, 16, or 25 tiles.</div>
+    <div id="message">Enter any perfect-square number of tiles: 4, 9, 16, 25, 36, and so on.</div>
   </div>
 </section>
 
@@ -126,6 +129,7 @@ document.getElementById("resetButton").addEventListener("click",resetPuzzle);
 window.addEventListener("pointermove",handlePointerMove);
 window.addEventListener("pointerup",handlePointerUp);
 window.addEventListener("pointercancel",cancelDrag);
+window.addEventListener("resize",()=>{if(boardSize)updatePuzzleScale();});
 
 function generatePuzzle(){
   try{
@@ -154,9 +158,37 @@ function parsePuzzleInput(text){
   });
 }
 
-function determineBoardSize(n){
-  if(n===9)return 3;if(n===16)return 4;if(n===25)return 5;
-  throw new Error(`The puzzle contains ${n} tiles. Use exactly 9, 16, or 25.`);
+function determineBoardSize(tileCount){
+  const size=Math.sqrt(tileCount);
+  if(!Number.isInteger(size)||size<2){
+    throw new Error(`The puzzle contains ${tileCount} tiles. Enter a perfect-square count of at least 4, such as 4, 9, 16, 25, 36, or 49.`);
+  }
+  return size;
+}
+
+function updatePuzzleScale(){
+  const wrapper=document.querySelector(".board-wrapper");
+  const availableWidth=Math.max(320,wrapper.clientWidth-40);
+
+  // Fit ordinary boards into the panel. Very large boards stop shrinking at
+  // 48 px per tile and use the board's scrollbars instead.
+  const cellSize=Math.max(48,Math.min(132,Math.floor(availableWidth/boardSize)));
+  const connectorSize=Math.max(16,Math.min(40,Math.round(cellSize*0.30)));
+  const connectorShift=Math.max(3,Math.round(connectorSize*0.15));
+  const gap=Math.max(18,Math.round(connectorSize*1.35));
+  const boardPadding=Math.max(24,Math.round(connectorSize*1.6));
+  const poolPadding=Math.max(24,Math.round(connectorSize*1.4));
+
+  const root=document.documentElement.style;
+  root.setProperty("--cell",`${cellSize}px`);
+  root.setProperty("--connector",`${connectorSize}px`);
+  root.setProperty("--connector-shift",`${connectorShift}px`);
+  root.setProperty("--gap",`${gap}px`);
+  root.setProperty("--board-padding",`${boardPadding}px`);
+  root.setProperty("--pool-padding",`${poolPadding}px`);
+
+  boardElement.classList.toggle("compact-positions",cellSize<82);
+  boardElement.classList.toggle("hide-positions",cellSize<62||boardSize>=14);
 }
 
 function resetPuzzle(){
@@ -168,7 +200,7 @@ function resetPuzzle(){
   setMessage("All pieces returned to the card pool.");
 }
 
-function renderEverything(){renderBoard();renderPool();updateInformation();}
+function renderEverything(){updatePuzzleScale();renderBoard();renderPool();updateInformation();}
 
 function renderBoard(){boardElement.innerHTML="";boardElement.style.gridTemplateColumns=`repeat(${boardSize}, var(--cell))`;boardSlots.forEach((tileId,index)=>{const slot=createSlot("board",index);slot.classList.add("board-slot");slot.dataset.position=`${Math.floor(index/boardSize)+1}, ${index%boardSize+1}`;if(tileId!==null){slot.classList.add("has-tile");slot.appendChild(createTileElement(tileId,"board"));}
     boardElement.appendChild(slot);
