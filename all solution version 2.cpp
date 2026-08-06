@@ -1,8 +1,8 @@
 #include <iostream>
 #include <ctime>
 #include <cmath>
-#include <atomic> // ±ØĞëÒıÈëÔ­×Ó±äÁ¿£¬·ÀÖ¹¶àÏß³Ì¾ºÕù
-#include <omp.h>  // ±àÒëÊ±Ğè¿ªÆô -fopenmp
+#include <atomic> 
+#include <omp.h>  
 
 using namespace std;
 
@@ -15,8 +15,6 @@ struct Cell { int id; int rot; Piece p; };
 
 Piece pieces[N * N];
 Piece rot[N * N][4];
-
-// ¡¾¶àÏß³ÌĞŞ¸Ä¡¿£ºÔ­×Ó¼ÆÊıÆ÷£¬±£Ö¤¶àÏß³ÌÏÂÍ³¼ÆÊıÁ¿²»»á³åÍ»
 atomic<long long> nodes{0};
 atomic<long long> solutions{0};
 time_t start_time;
@@ -48,7 +46,7 @@ bool valid(int r, int c, Cell board[N][N]) {
 }
 
 void print_solution(Cell board[N][N], long long sol_id) {
-    // Ê¹ÓÃ omp critical ±£»¤Êä³ö£¬±ÜÃâ¶à¸öÏß³Ì´òÓ¡ÈÕÖ¾½»Ö¯ÂÒÌ×
+    // Ê¹ï¿½ï¿½ omp critical ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³Ì´ï¿½Ó¡ï¿½ï¿½Ö¾ï¿½ï¿½Ö¯ï¿½ï¿½ï¿½ï¿½
     #pragma omp critical
     {
         cout << "\n================ Solution #" << sol_id << " ================\n";
@@ -64,7 +62,6 @@ void print_solution(Cell board[N][N], long long sol_id) {
     }
 }
 
-// ¡¾¹Ø¼üĞŞ¸Ä¡¿£º½« board ºÍ used ¸ÄÎª¾Ö²¿²ÎÊı»ò°´Öµ´«µİ£¬Ïû³ıÏß³Ì¼äµÄ¹²Ïí³åÍ»
 void dfs(int pos, Cell board[N][N], bool used[N * N]) {
     nodes++;
 
@@ -104,21 +101,19 @@ void dfs(int pos, Cell board[N][N], bool used[N * N]) {
     }
 }
 
-// ²¢ĞĞÈë¿Ú£º°´ pos == 0 µÄµÚÒ»¿éÑ¡Ôñ½øĞĞÈÎÎñ²ğ·Ö
 void solve_parallel() {
     #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < n * n; i++) {
-        // Ã¿¸öÏß³ÌÓµÓĞÊôÓÚ×Ô¼ºµÄ°åÃæºÍÊ¹ÓÃ×´Ì¬Êı×é
+
         Cell local_board[N][N];
         bool local_used[N * N] = {false};
 
-        // °ó¶¨µÚ 0 Î»ÖÃ·ÅÖÃµÚ i ¿éÆ´Í¼£¨¹Ì¶¨Ğı×ª 0£©
         local_board[0][0].id = i;
         local_board[0][0].rot = 0;
         local_board[0][0].p = rot[i][0];
         local_used[i] = true;
 
-        // Ïß³Ì¶ÀÁ¢ÉîÈëËÑË÷ pos == 1 Ö®ºóµÄ·ÖÖ§
+       
         dfs(1, local_board, local_used);
     }
 }
