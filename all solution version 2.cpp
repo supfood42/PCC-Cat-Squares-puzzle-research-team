@@ -1,150 +1,254 @@
-#include <iostream>
-#include <ctime>
-#include <cmath>
-#include <atomic> 
-#include <omp.h>  
-
+#include <bits/stdc++.h>
 using namespace std;
 
 const int N = 6;
 int n = 6;
 
-struct Edge { int value; };
-struct Piece { Edge e[4]; };
-struct Cell { int id; int rot; Piece p; };
+struct Edge
+{
+    int value;
+};
+
+struct Piece
+{
+    Edge e[4]; // 0: up, 1: right, 2: down, 3: left
+};
+
+struct Cell
+{
+    int id;
+    int rot;
+    Piece p;
+};
 
 Piece pieces[N * N];
 Piece rot[N * N][4];
-atomic<long long> nodes{0};
-atomic<long long> solutions{0};
-time_t start_time;
 
-bool match(Edge a, Edge b) {
-    return a.value + b.value == 0;
+Cell board[N][N];
+bool used[N * N];
+
+long long nodes = 0;
+long long solutions = 0;
+
+time_t start;
+
+map<int, vector<int>> bucket;
+
+bool match(Edge a, Edge b)
+{
+    return (a.value + b.value == 0);
 }
 
-Piece rotate90(Piece p) {
+Piece rotate90(Piece p)
+{
     Piece q;
-    q.e[0] = p.e[3]; q.e[1] = p.e[0];
-    q.e[2] = p.e[1]; q.e[3] = p.e[2];
+    q.e[0] = p.e[3];
+    q.e[1] = p.e[0];
+    q.e[2] = p.e[1];
+    q.e[3] = p.e[2];
     return q;
 }
 
-void build_rotations() {
-    for (int i = 0; i < n * n; i++) {
+void build_rotations()
+{
+    for (int i = 0; i < n * n; i++)
+    {
         rot[i][0] = pieces[i];
         for (int r = 1; r < 4; r++)
             rot[i][r] = rotate90(rot[i][r - 1]);
     }
 }
 
-bool valid(int r, int c, Cell board[N][N]) {
-    Piece &cur = board[r][c].p;
-    if (r > 0 && !match(cur.e[0], board[r - 1][c].p.e[2])) return false;
-    if (c > 0 && !match(cur.e[3], board[r][c - 1].p.e[1])) return false;
-    return true;
-}
-
-void print_solution(Cell board[N][N], long long sol_id) {
-    // ʹ�� omp critical ����������������̴߳�ӡ��־��֯����
-    #pragma omp critical
+void build_bucket()
+{
+    for (int i = 0; i < n * n; i++)
     {
-        cout << "\n================ Solution #" << sol_id << " ================\n";
-        for (int r = 0; r < n; r++) {
-            for (int c = 0; c < n; c++) {
-                cout << "[P";
-                if (board[r][c].id < 10) cout << "0";
-                cout << board[r][c].id << " r" << board[r][c].rot << "] ";
+        for (int r = 0; r < 4; r++)
+        {
+            for (int k = 0; k < 4; k++)
+            {
+                int v = rot[i][r].e[k].value;
+                bucket[v].push_back(i);
             }
-            cout << '\n';
         }
-        cout << "===============================================\n\n";
     }
 }
 
-void dfs(int pos, Cell board[N][N], bool used[N * N]) {
+bool valid(int r, int c)
+{
+    Piece &cur = board[r][c].p;
+
+    if (r > 0)
+    {
+        if (!match(cur.e[0], board[r - 1][c].p.e[2]))
+            return false;
+    }
+
+    if (c > 0)
+    {
+        if (!match(cur.e[3], board[r][c - 1].p.e[1]))
+            return false;
+    }
+
+    return true;
+}
+
+void dfs(int pos)
+{
     nodes++;
 
-    if (pos == n * n) {
-        long long current_sol = ++solutions;
-        time_t now = time(NULL);
-        
-        #pragma omp critical
+    if (pos == n * n)
+    {
+        solutions++;
+
+        if (solutions % 1 == 0)
         {
-            cout << "Found solution #" << current_sol 
-                 << " | Time: " << difftime(now, start_time) << " s\n";
+            time_t now = time(NULL);
+            cout << "Solutions found: "
+                 << solutions-4 1 -4 -3
+-2 -2 2 -1
+-1 1 4 1
+3 -3 2 -4
+-2 -1 -4 3
+3 3 -3 2     
+4 -2 -1 -2
+-2 -2 4 -1
+1 -1 -4 -1
+-4 2 4 -2
+-4 -4 -1 3
+1 2 -1 3
+2 -2 -2 -3 
+1 3 -4 -3
+4 2 4 1     
+-4 1 2 -4
+4 -3 -2 -4
+-2 2 2 -3
+3 1 -4 3
+2 -4 4 -4
+-2 4 1 2
+2 -2 -2 -2
+4 1 -1 -2
+-1 -4 3 2
+2 3 -4 3
+-2 -2 2 -3  
+-3 3 3 1-4 1 -4 -3
+-2 -2 2 -1
+-1 1 4 1
+3 -3 2 -4
+-2 -1 -4 3
+3 3 -3 2     
+4 -2 -1 -2
+-2 -2 4 -1
+1 -1 -4 -1
+-4 2 4 -2
+-4 -4 -1 3
+1 2 -1 3
+2 -2 -2 -3 
+1 3 -4 -3
+4 2 4 1     
+-4 1 2 -4
+4 -3 -2 -4
+-2 2 2 -3
+3 1 -4 3
+2 -4 4 -4
+-2 4 1 2
+2 -2 -2 -2
+4 1 -1 -2
+-1 -4 3 2
+2 3 -4 3
+-2 -2 2 -3  
+-3 3 3 1
+                 << "    Time: "
+                 << difftime(now, start)
+                 << " s\n";
         }
 
-        print_solution(board, current_sol);
         return;
     }
 
     int r = pos / n;
     int c = pos % n;
 
-    for (int i = 0; i < n * n; i++) {
-        if (used[i]) continue;
+    vector<int> candidates;
 
-        int max_rot = (pos == 0) ? 1 : 4;
+    if (r > 0)
+    {
+        int need = -board[r - 1][c].p.e[2].value;
+        for (int id : bucket[need])
+            candidates.push_back(id);
+    }
+    else if (c > 0)
+    {
+        int need = -board[r][c - 1].p.e[1].value;
+        for (int id : bucket[need])
+            candidates.push_back(id);
+    }
+    else
+    {
+        for (int i = 0; i < n * n; i++)
+            candidates.push_back(i);
+    }
 
-        for (int k = 0; k < max_rot; k++) {
+    sort(candidates.begin(), candidates.end());
+    candidates.erase(unique(candidates.begin(), candidates.end()), candidates.end());
+
+    for (int i : candidates)
+    {
+        if (used[i])
+            continue;
+
+        for (int k = 0; k < 4; k++)
+        {
             board[r][c].id = i;
             board[r][c].rot = k;
             board[r][c].p = rot[i][k];
 
-            if (valid(r, c, board)) {
+            if (valid(r, c))
+            {
                 used[i] = true;
-                dfs(pos + 1, board, used);
+                dfs(pos + 1);
                 used[i] = false;
             }
         }
     }
 }
 
-void solve_parallel() {
-    #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < n * n; i++) {
+int main()
+{
+    start = time(NULL);
 
-        Cell local_board[N][N];
-        bool local_used[N * N] = {false};
-
-        local_board[0][0].id = i;
-        local_board[0][0].rot = 0;
-        local_board[0][0].p = rot[i][0];
-        local_used[i] = true;
-
-       
-        dfs(1, local_board, local_used);
-    }
-}
-
-int main() {
-    start_time = time(NULL);
-
-    cout << "Puzzle size = " << n << "x" << n << '\n';
+    cout << "Puzzle size = " << n << "x" << '\n';
     cout << "Enter " << n * n << " pieces:\n";
+    cout << "Each piece: 4 integers (up right down left)\n\n";
 
-    for (int i = 0; i < n * n; i++) {
-        for (int j = 0; j < 4; j++) {
+    for (int i = 0; i < n * n; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
             cin >> pieces[i].e[j].value;
         }
     }
 
+    for (int i = 0; i < n * n; i++)
+        used[i] = false;
+
     build_rotations();
+    build_bucket(); 
 
-    cout << "Running with " << omp_get_max_threads() << " threads...\n";
+    dfs(0);
 
-    solve_parallel();
-
-    if (solutions == 0) {
-        cout << "\nNo solution found.\n";
-    } else {
-        cout << "\nTotal Unique Solutions: " << solutions << '\n';
-    }
+    if (solutions == 0)
+        cout << "\nNo solution\n";
+    else
+        cout << "\nTotal Solutions: " << solutions << '\n';
 
     time_t end = time(NULL);
-    cout << "Total Time: " << difftime(end, start_time) << " s\n";
-    cout << "Tries (nodes visited): " << nodes << '\n';
+
+    cout << "\nTotal Time: "
+         << difftime(end, start)
+         << " s\n";
+
+    cout << "Tries: " << nodes << '\n';
 
     return 0;
 }
